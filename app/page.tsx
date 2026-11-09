@@ -1,5 +1,6 @@
-import { ArrowRight, Bot, CalendarCheck, Clock, Globe2, MailCheck, ShieldCheck, Video } from "lucide-react";
+import { ArrowRight, CalendarCheck, Clock, Globe2, MailCheck, Video } from "lucide-react";
 import Link from "next/link";
+import AgentPrompt from "@/components/agent-prompt";
 import { Badge, Card } from "@/components/ui";
 import { loadSettings } from "@/lib/settings";
 
@@ -96,22 +97,7 @@ export default async function HomePage() {
         ))}
       </section>
 
-      <Card className="mt-16 flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary-soft-foreground">
-          <Bot className="size-5" />
-        </span>
-        <p className="text-sm leading-6 text-muted-foreground">
-          <span className="font-medium text-foreground">Using an AI assistant?</span> Point it at this
-          site, the OpenAPI spec at{" "}
-          <code className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground">/api/openapi</code>{" "}
-          or the MCP endpoint at{" "}
-          <code className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground">/api/mcp</code>.
-        </p>
-        <span className="flex items-center gap-1.5 text-xs text-muted-foreground sm:ml-auto sm:shrink-0">
-          <ShieldCheck className="size-4 text-success" />
-          Only open slots are shared
-        </span>
-      </Card>
+      <AgentPrompt />
     </main>
   );
 }

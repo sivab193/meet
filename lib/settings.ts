@@ -55,7 +55,14 @@ export function getMeetLink(): string {
 }
 
 export function getAppUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
+  // Prefer the explicit setting; on Vercel fall back to the project's production
+  // domain (a system env var) so links never point at localhost in production.
+  const vercelHost = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  const url =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (vercelHost ? `https://${vercelHost}` : "") ||
+    "http://localhost:3000";
+  return url.replace(/\/$/, "");
 }
 
 export function getHostEmail(): string {
