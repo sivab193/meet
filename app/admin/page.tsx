@@ -1,3 +1,5 @@
+import { LockKeyhole } from "lucide-react";
+import { Alert, Card } from "@/components/ui";
 import { isAdminSession } from "@/lib/auth";
 import { listBookings } from "@/lib/bookings";
 import { getTimeZone, loadOverrides, loadSettings } from "@/lib/settings";
@@ -24,9 +26,17 @@ async function loadAdminData() {
 export default async function AdminPage() {
   if (!(await isAdminSession())) {
     return (
-      <main className="mx-auto min-h-screen max-w-md px-4 py-10">
-        <h1 className="text-2xl font-bold tracking-tight">Admin</h1>
-        <LoginForm />
+      <main className="mx-auto w-full max-w-md px-4 py-16 sm:py-24">
+        <Card className="animate-fade-up p-7">
+          <span className="flex size-11 items-center justify-center rounded-xl bg-primary-soft text-primary-soft-foreground">
+            <LockKeyhole className="size-5" />
+          </span>
+          <h1 className="mt-4 text-2xl font-bold tracking-tight">Owner workspace</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Sign in to manage availability and bookings.
+          </p>
+          <LoginForm />
+        </Card>
       </main>
     );
   }
@@ -37,12 +47,14 @@ export default async function AdminPage() {
   } catch (err) {
     console.error("[admin page]", err);
     return (
-      <main className="mx-auto min-h-screen max-w-2xl px-4 py-10">
+      <main className="mx-auto w-full max-w-2xl px-4 py-12">
         <h1 className="text-2xl font-bold tracking-tight">Admin</h1>
-        <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          The database is unavailable. Check DATABASE_URL and run{" "}
-          <code>npm run db:migrate</code>.
-        </p>
+        <div className="mt-4">
+          <Alert>
+            The database is unavailable. Check DATABASE_URL and run{" "}
+            <code className="font-mono">npm run db:migrate</code>.
+          </Alert>
+        </div>
       </main>
     );
   }

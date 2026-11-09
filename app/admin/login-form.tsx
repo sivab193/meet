@@ -1,7 +1,9 @@
 "use client";
 
+import { KeyRound, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Alert, Label, buttonClass, cn, inputClass } from "@/components/ui";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -32,29 +34,25 @@ export default function LoginForm() {
   }
 
   return (
-    <form onSubmit={submit} className="mt-6 space-y-3">
+    <form onSubmit={submit} className="mt-6 space-y-4">
       <div>
-        <label className="mb-1 block text-sm font-medium" htmlFor="password">
-          Admin password
-        </label>
-        <input
-          id="password"
-          type="password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-lg border border-neutral-300 px-3 py-2"
-          autoComplete="current-password"
-        />
+        <Label htmlFor="password">Admin password</Label>
+        <div className="relative">
+          <KeyRound className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            id="password"
+            type="password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={cn(inputClass, "pl-9")}
+            autoComplete="current-password"
+          />
+        </div>
       </div>
-      {error && (
-        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-      )}
-      <button
-        type="submit"
-        disabled={working}
-        className="w-full rounded-lg bg-neutral-900 px-4 py-2 font-medium text-white disabled:opacity-50"
-      >
+      {error && <Alert>{error}</Alert>}
+      <button type="submit" disabled={working} className={cn(buttonClass("primary", "lg"), "w-full")}>
+        {working && <Loader2 className="size-4 animate-spin" />}
         {working ? "Signing in…" : "Sign in"}
       </button>
     </form>
