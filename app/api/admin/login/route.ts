@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ADMIN_COOKIE, adminSessionValue, timingSafeEqualStr } from "@/lib/auth";
+import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,14 @@ export async function POST(request: Request) {
   const configured = process.env.ADMIN_PASSWORD;
   if (!configured) {
     return NextResponse.json({ error: "admin login is not configured" }, { status: 503 });
+  }
+  try {
+    if (!(await checkRateLimit(clientIp(request), "/api/admin/login", 10, 15 * 60_000))) {
+      return NextResponse.json({ error: "too many login attempts" }, { status: 429 });
+    }
+  } catch (error) {
+    console.error("[admin login rate limit]", error);
+    return NextResponse.json({ error: "database unavailable" }, { status: 503 });
   }
   const password = typeof body.password === "string" ? body.password : "";
   if (!password || !timingSafeEqualStr(password, configured)) {

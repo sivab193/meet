@@ -5,7 +5,7 @@ import { sendBookingConfirmationEmails } from "@/lib/booking-email";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 import { getAppUrl, getMeetLink, getTimeZone, loadOverrides, loadSettings } from "@/lib/settings";
 import { generateSlots } from "@/lib/slots";
-import { addDaysToDateString, parseDateString, zonedTimeToUtc } from "@/lib/timezone";
+import { addDaysToDateString, dateStringInTimeZone, parseDateString, zonedTimeToUtc } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -70,16 +70,21 @@ export async function POST(request: Request) {
     // Recompute the offered slots server-side and require an exact match.
     // This enforces windows, min notice, and bookings regardless of the client.
     const tz = getTimeZone();
-    const dayStart = zonedTimeToUtc(parsedDate.year, parsedDate.month, parsedDate.day, 0, 0, tz);
-    const nextDay = parseDateString(addDaysToDateString(date, 1));
+    const hostDate = dateStringInTimeZone(start, tz);
+    const hostParsedDate = parseDateString(hostDate);
+    if (!hostParsedDate) {
+      return NextResponse.json({ error: "invalid date" }, { status: 400 });
+    }
+    const dayStart = zonedTimeToUtc(hostParsedDate.year, hostParsedDate.month, hostParsedDate.day, 0, 0, tz);
+    const nextDay = parseDateString(addDaysToDateString(hostDate, 1));
     if (!nextDay) {
       return NextResponse.json({ error: "invalid date" }, { status: 400 });
     }
     const dayEnd = zonedTimeToUtc(nextDay.year, nextDay.month, nextDay.day, 0, 0, tz);
-    const overrides = await loadOverrides(date, date);
+    const overrides = await loadOverrides(hostDate, hostDate);
     const bookings = await listConfirmedWindowsForDay(dayStart, dayEnd);
     const slots = generateSlots({
-      date,
+      date: hostDate,
       durationMinutes: duration,
       weeklyHours: settings.weekly_hours,
       overrides,

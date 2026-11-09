@@ -39,7 +39,7 @@ async function main() {
       "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name"
     );
     const names = tables.rows.map((r) => r.table_name);
-    for (const t of ["settings", "date_overrides", "bookings", "rate_limits"]) {
+    for (const t of ["settings", "date_overrides", "bookings", "rate_limits", "calendar_busy"]) {
       check(`table ${t} exists`, names.includes(t));
     }
 
@@ -55,6 +55,9 @@ async function main() {
       WHERE NOT EXISTS (
         SELECT 1 FROM bookings
         WHERE status = 'confirmed' AND start_utc < $3 AND end_utc > $2
+      ) AND NOT EXISTS (
+        SELECT 1 FROM calendar_busy
+        WHERE start_utc < $3 AND end_utc > $2
       ) RETURNING id`;
     const first = await db.query(insertSql, [
       "call", "2026-11-02T14:00:00Z", "2026-11-02T14:30:00Z",
@@ -73,6 +76,16 @@ async function main() {
       "Next Person", "next@example.com", null, "token-cccccccccccccccccccccccccccccccc",
     ]);
     check("adjacent (touching) booking inserts", adjacent.rows.length === 1);
+
+    await db.query(
+      "INSERT INTO calendar_busy (source, external_id, start_utc, end_utc, summary) VALUES ($1, $2, $3, $4, $5)",
+      ["google", "busy-1", "2026-11-02T16:00:00Z", "2026-11-02T17:00:00Z", "Private event"]
+    );
+    const calendarConflict = await db.query(insertSql, [
+      "call", "2026-11-02T16:30:00Z", "2026-11-02T17:00:00Z",
+      "Calendar Conflict", "conflict@example.com", null, "token-dddddddddddddddddddddddddddddddd",
+    ]);
+    check("synced calendar busy window rejects booking", calendarConflict.rows.length === 0);
 
     // Cancel by token.
     const cancelled = await db.query(

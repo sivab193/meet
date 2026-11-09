@@ -85,7 +85,7 @@ export function normalizeWeeklyHours(value: unknown): (WeeklyHoursEntry | null)[
   return out;
 }
 
-function normalizeEventTypes(value: unknown): EventType[] {
+export function normalizeEventTypes(value: unknown): EventType[] {
   if (!Array.isArray(value)) return DEFAULT_SETTINGS.event_types;
   const out: EventType[] = [];
   for (const e of value) {
@@ -93,16 +93,24 @@ function normalizeEventTypes(value: unknown): EventType[] {
     const entry = e as Record<string, unknown>;
     if (
       typeof entry.id === "string" &&
+      /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(entry.id) &&
       typeof entry.name === "string" &&
+      entry.name.trim().length > 0 &&
+      entry.name.length <= 80 &&
       Array.isArray(entry.durations) &&
       entry.durations.length > 0 &&
-      entry.durations.every((d) => typeof d === "number" && d > 0)
+      entry.durations.every(
+        (d) => typeof d === "number" && Number.isInteger(d) && d >= 5 && d <= 480
+      )
     ) {
       out.push({
         id: entry.id,
-        name: entry.name,
-        durations: entry.durations as number[],
-        description: typeof entry.description === "string" ? entry.description : undefined,
+        name: entry.name.trim(),
+        durations: [...new Set(entry.durations as number[])].sort((a, b) => a - b),
+        description:
+          typeof entry.description === "string"
+            ? entry.description.trim().slice(0, 300)
+            : undefined,
       });
     }
   }

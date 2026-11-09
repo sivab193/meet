@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
+import {
+  hostOverrideRangeForViewerMonth,
+  viewerDateHasAvailability,
+} from "@/lib/public-slots";
 import { getTimeZone, loadOverrides, loadSettings } from "@/lib/settings";
-import { dayHasAvailability } from "@/lib/slots";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +15,8 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const month = searchParams.get("month") ?? "";
+  const eventType = searchParams.get("eventType") ?? "";
+  const viewerTimeZone = searchParams.get("timeZone") ?? "UTC";
   const m = /^(\d{4})-(\d{2})$/.exec(month);
   if (!m) {
     return NextResponse.json({ error: "month must be YYYY-MM" }, { status: 400 });
@@ -23,16 +28,28 @@ export async function GET(request: Request) {
   }
   try {
     const settings = await loadSettings();
+    if (!settings.event_types.some((event) => event.id === eventType)) {
+      return NextResponse.json({ error: "unknown event type" }, { status: 404 });
+    }
+    const hostTimeZone = getTimeZone();
+    const range = hostOverrideRangeForViewerMonth(year, mon, viewerTimeZone, hostTimeZone);
+    if (!range) {
+      return NextResponse.json({ error: "invalid timezone" }, { status: 400 });
+    }
     const lastDay = new Date(Date.UTC(year, mon, 0)).getUTCDate();
-    const from = `${month}-01`;
-    const to = `${month}-${String(lastDay).padStart(2, "0")}`;
-    const overrides = await loadOverrides(from, to);
+    const overrides = await loadOverrides(range.from, range.to);
     const days: Record<string, boolean> = {};
     for (let d = 1; d <= lastDay; d++) {
       const ds = `${month}-${String(d).padStart(2, "0")}`;
-      days[ds] = dayHasAvailability(ds, settings.weekly_hours, overrides);
+      days[ds] = viewerDateHasAvailability({
+        date: ds,
+        viewerTimeZone,
+        hostTimeZone,
+        settings,
+        overrides,
+      });
     }
-    return NextResponse.json({ days, timeZone: getTimeZone() });
+    return NextResponse.json({ eventType, days, timeZone: viewerTimeZone, hostTimeZone });
   } catch (err) {
     console.error("[availability]", err);
     return NextResponse.json({ error: "database unavailable" }, { status: 503 });

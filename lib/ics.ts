@@ -8,12 +8,49 @@ export function formatIcsDate(d: Date): string {
   );
 }
 
-function escapeIcsText(s: string): string {
+export function escapeIcsText(s: string): string {
   return s
     .replace(/\\/g, "\\\\")
     .replace(/;/g, "\\;")
     .replace(/,/g, "\\,")
     .replace(/\r?\n/g, "\\n");
+}
+
+export type CalendarEvent = {
+  uid: string;
+  start: Date;
+  end: Date;
+  summary: string;
+  description: string;
+  location: string;
+  status?: "CONFIRMED" | "CANCELLED";
+};
+
+export function buildCalendarIcs(events: CalendarEvent[]): string {
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//meet-siv19-dev//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "X-WR-CALNAME:Sivaganesh meetings",
+  ];
+  for (const event of events) {
+    lines.push(
+      "BEGIN:VEVENT",
+      `UID:${event.uid}@meet.siv19.dev`,
+      `DTSTAMP:${formatIcsDate(new Date())}`,
+      `DTSTART:${formatIcsDate(event.start)}`,
+      `DTEND:${formatIcsDate(event.end)}`,
+      `SUMMARY:${escapeIcsText(event.summary)}`,
+      `DESCRIPTION:${escapeIcsText(event.description)}`,
+      `LOCATION:${escapeIcsText(event.location)}`,
+      `STATUS:${event.status ?? "CONFIRMED"}`,
+      "END:VEVENT"
+    );
+  }
+  lines.push("END:VCALENDAR");
+  return lines.join("\r\n") + "\r\n";
 }
 
 export function buildIcs(opts: {

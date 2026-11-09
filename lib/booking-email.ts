@@ -45,7 +45,7 @@ export async function sendBookingConfirmationEmails(booking: BookingRow): Promis
     uid: booking.id,
     start,
     end,
-    summary: "Call with Sivaganesh",
+    summary: `${booking.event_type}: ${booking.booker_name} with Sivaganesh`,
     description: `Meet link: ${meetLink}\nCancel: ${cancelUrl}`,
     location: meetLink,
   });
@@ -84,6 +84,7 @@ export async function sendBookingConfirmationEmails(booking: BookingRow): Promis
         booking.notes ? `Notes: ${booking.notes}` : ``,
         `Manage/cancel: ${cancelUrl}`,
       ].join("\n"),
+      attachments: [{ filename: "booking.ics", content: ics }],
     });
   }
 }

@@ -7,6 +7,20 @@ import LoginForm from "./login-form";
 
 export const dynamic = "force-dynamic";
 
+async function loadAdminData() {
+  const tz = getTimeZone();
+  const today = dateStringInTimeZone(new Date(), tz);
+  const calendarFrom = addDaysToDateString(today, -90);
+  const calendarTo = addDaysToDateString(today, 365);
+  const bookings = await listBookings(
+    `${calendarFrom}T00:00:00Z`,
+    `${calendarTo}T00:00:00Z`
+  );
+  const settings = await loadSettings();
+  const overrides = await loadOverrides();
+  return { tz, calendarFrom, calendarTo, bookings, settings, overrides };
+}
+
 export default async function AdminPage() {
   if (!(await isAdminSession())) {
     return (
@@ -17,29 +31,9 @@ export default async function AdminPage() {
     );
   }
 
+  let data: Awaited<ReturnType<typeof loadAdminData>>;
   try {
-    const tz = getTimeZone();
-    const today = dateStringInTimeZone(new Date(), tz);
-    const bookings = await listBookings(
-      `${today}T00:00:00Z`,
-      `${addDaysToDateString(today, 30)}T00:00:00Z`
-    );
-    const settings = await loadSettings();
-    const overrides = await loadOverrides();
-    return (
-      <Dashboard
-        timeZone={tz}
-        initialBookings={bookings}
-        initialAvailability={{
-          weekly_hours: settings.weekly_hours,
-          overrides,
-          min_notice_minutes: settings.min_notice_minutes,
-          slot_step_minutes: settings.slot_step_minutes,
-          max_days_ahead: settings.max_days_ahead,
-          event_types: settings.event_types,
-        }}
-      />
-    );
+    data = await loadAdminData();
   } catch (err) {
     console.error("[admin page]", err);
     return (
@@ -52,4 +46,21 @@ export default async function AdminPage() {
       </main>
     );
   }
+
+  return (
+    <Dashboard
+      timeZone={data.tz}
+      calendarFrom={data.calendarFrom}
+      calendarTo={data.calendarTo}
+      initialBookings={data.bookings}
+      initialAvailability={{
+        weekly_hours: data.settings.weekly_hours,
+        overrides: data.overrides,
+        min_notice_minutes: data.settings.min_notice_minutes,
+        slot_step_minutes: data.settings.slot_step_minutes,
+        max_days_ahead: data.settings.max_days_ahead,
+        event_types: data.settings.event_types,
+      }}
+    />
+  );
 }

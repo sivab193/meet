@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { BookingRow } from "@/lib/bookings";
 import type { EventType, OverrideRow } from "@/lib/settings";
 
@@ -36,12 +36,37 @@ function fmtWhen(iso: string, timeZone: string): string {
   }).format(new Date(iso));
 }
 
+function dateInZone(iso: string, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(iso));
+  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function monthCells(year: number, month: number): (string | null)[] {
+  const first = new Date(Date.UTC(year, month, 1)).getUTCDay();
+  const count = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const result: (string | null)[] = Array.from({ length: first }, () => null);
+  for (let day = 1; day <= count; day++) {
+    result.push(`${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`);
+  }
+  return result;
+}
+
 export default function Dashboard({
   timeZone,
+  calendarFrom,
+  calendarTo,
   initialBookings,
   initialAvailability,
 }: {
   timeZone: string;
+  calendarFrom: string;
+  calendarTo: string;
   initialBookings: BookingRow[];
   initialAvailability: AvailabilityState;
 }) {
@@ -58,10 +83,15 @@ export default function Dashboard({
   const [ovUnavailable, setOvUnavailable] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const initialCalendarDate = new Date();
+  const [calendarMonth, setCalendarMonth] = useState({
+    year: initialCalendarDate.getFullYear(),
+    month: initialCalendarDate.getMonth(),
+  });
 
   async function refresh() {
     const [b, a] = await Promise.all([
-      fetch("/api/admin/bookings").then((r) => r.json()),
+      fetch(`/api/admin/bookings?from=${calendarFrom}&to=${calendarTo}`).then((r) => r.json()),
       fetch("/api/admin/availability").then((r) => r.json()),
     ]);
     if (Array.isArray(b.bookings)) setBookings(b.bookings);
@@ -134,6 +164,41 @@ export default function Dashboard({
     putAvailability({ overrides: { delete: [id] } });
   }
 
+  function updateEvent(index: number, patch: Partial<EventType>) {
+    setAvail((current) => ({
+      ...current,
+      event_types: current.event_types.map((event, i) =>
+        i === index ? { ...event, ...patch } : event
+      ),
+    }));
+  }
+
+  function addEvent() {
+    const suffix = avail.event_types.length + 1;
+    setAvail((current) => ({
+      ...current,
+      event_types: [
+        ...current.event_types,
+        { id: `meeting-${suffix}`, name: `Meeting ${suffix}`, durations: [30], description: "" },
+      ],
+    }));
+  }
+
+  function removeEvent(index: number) {
+    if (avail.event_types.length === 1) {
+      setMessage("At least one event type is required.");
+      return;
+    }
+    setAvail((current) => ({
+      ...current,
+      event_types: current.event_types.filter((_, i) => i !== index),
+    }));
+  }
+
+  function saveEvents() {
+    putAvailability({ event_types: avail.event_types });
+  }
+
   async function cancelBooking(id: string) {
     setMessage(null);
     const r = await fetch(`/api/admin/bookings/${id}/cancel`, { method: "POST" });
@@ -152,9 +217,28 @@ export default function Dashboard({
 
   const upcoming = bookings.filter((b) => b.status === "confirmed");
   const past = bookings.filter((b) => b.status !== "confirmed");
+  const calendarBookings = useMemo(() => {
+    const grouped: Record<string, BookingRow[]> = {};
+    for (const booking of bookings) {
+      const date = dateInZone(booking.start_utc, timeZone);
+      (grouped[date] ??= []).push(booking);
+    }
+    return grouped;
+  }, [bookings, timeZone]);
+  const calendarCells = monthCells(calendarMonth.year, calendarMonth.month);
+  const monthLabel = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(calendarMonth.year, calendarMonth.month, 1)));
+
+  function shiftCalendarMonth(delta: number) {
+    const next = new Date(Date.UTC(calendarMonth.year, calendarMonth.month + delta, 1));
+    setCalendarMonth({ year: next.getUTCFullYear(), month: next.getUTCMonth() });
+  }
 
   return (
-    <main className="mx-auto min-h-screen max-w-3xl px-4 py-10">
+    <main className="mx-auto min-h-screen max-w-6xl px-4 py-10">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Admin</h1>
         <button
@@ -168,6 +252,47 @@ export default function Dashboard({
       {message && (
         <p className="mt-4 rounded-lg bg-neutral-100 px-3 py-2 text-sm">{message}</p>
       )}
+
+      <section className="mt-8">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">Private calendar</h2>
+            <p className="mt-1 text-sm text-neutral-500">
+              Full booking details are visible only in this signed-in workspace. Times use {timeZone}.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => shiftCalendarMonth(-1)} className="rounded-lg border border-neutral-300 px-3 py-1 text-sm">←</button>
+            <span className="min-w-40 text-center text-sm font-semibold">{monthLabel}</span>
+            <button onClick={() => shiftCalendarMonth(1)} className="rounded-lg border border-neutral-300 px-3 py-1 text-sm">→</button>
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-7 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500">
+          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <div key={day} className="py-2">{day}</div>)}
+        </div>
+        <div className="grid grid-cols-7 overflow-hidden rounded-xl border border-neutral-200 bg-neutral-200 gap-px">
+          {calendarCells.map((date, index) => {
+            if (!date) return <div key={`empty-${index}`} className="min-h-24 bg-neutral-50" />;
+            const items = calendarBookings[date] ?? [];
+            return (
+              <div key={date} className="min-h-24 bg-white p-2">
+                <div className="text-xs font-semibold text-neutral-500">{Number(date.slice(-2))}</div>
+                <div className="mt-1 space-y-1">
+                  {items.map((booking) => (
+                    <div
+                      key={booking.id}
+                      title={`${booking.booker_name} · ${booking.booker_email}${booking.notes ? ` · ${booking.notes}` : ""}`}
+                      className={`truncate rounded px-1.5 py-1 text-[11px] leading-tight ${booking.status === "confirmed" ? "bg-emerald-100 text-emerald-900" : "bg-neutral-100 text-neutral-500 line-through"}`}
+                    >
+                      {new Intl.DateTimeFormat("en-US", { timeZone, hour: "numeric", minute: "2-digit" }).format(new Date(booking.start_utc))} {booking.booker_name}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
       <section className="mt-8">
         <h2 className="text-lg font-semibold">Upcoming bookings (next 30 days)</h2>
@@ -351,18 +476,37 @@ export default function Dashboard({
 
       <section className="mt-10">
         <h2 className="text-lg font-semibold">Event types</h2>
-        <ul className="mt-2 space-y-1 text-sm text-neutral-700">
-          {avail.event_types.map((e) => (
-            <li key={e.id}>
-              <span className="font-medium">{e.name}</span> ({e.id}) —{" "}
-              {e.durations.join(", ")} min
-              {e.description ? ` — ${e.description}` : ""}
-            </li>
-          ))}
-        </ul>
-        <p className="mt-2 text-xs text-neutral-500">
-          Event types are edited via PUT /api/admin/availability (see README).
+        <p className="mt-1 text-sm text-neutral-500">
+          Each slug becomes a public booking link. Visitors see open slots, never private calendar details.
         </p>
+        <div className="mt-3 space-y-3">
+          {avail.event_types.map((event, index) => (
+            <div key={`${event.id}-${index}`} className="rounded-xl border border-neutral-200 p-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="text-sm font-medium">Name
+                  <input value={event.name} onChange={(e) => updateEvent(index, { name: e.target.value })} className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 font-normal" />
+                </label>
+                <label className="text-sm font-medium">Link slug
+                  <input value={event.id} onChange={(e) => updateEvent(index, { id: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-") })} className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 font-mono font-normal" />
+                </label>
+                <label className="text-sm font-medium sm:col-span-2">Description
+                  <input value={event.description ?? ""} onChange={(e) => updateEvent(index, { description: e.target.value })} className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 font-normal" />
+                </label>
+                <label className="text-sm font-medium">Durations (minutes, comma separated)
+                  <input value={event.durations.join(", ")} onChange={(e) => updateEvent(index, { durations: e.target.value.split(",").map(Number).filter((value) => Number.isInteger(value) && value > 0) })} className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 font-normal" />
+                </label>
+                <div className="flex items-end justify-between gap-3">
+                  <a href={`/${event.id}`} target="_blank" className="break-all pb-2 text-sm text-blue-700 underline">/{event.id}</a>
+                  <button onClick={() => removeEvent(index)} className="rounded-lg border border-red-300 px-3 py-2 text-sm text-red-700">Remove</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 flex gap-2">
+          <button onClick={addEvent} className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium">Add event type</button>
+          <button onClick={saveEvents} disabled={saving} className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{saving ? "Saving…" : "Save event types"}</button>
+        </div>
       </section>
     </main>
   );

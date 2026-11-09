@@ -1,17 +1,23 @@
-# meet-siv19-dev
+# meet.siv19.dev
 
-A small single-user scheduling app for Sivaganesh. One person, one booking
-page, no teams, no payments, no calendar sync, no approval queues. Bookings
-auto-confirm and include his recurring Google Meet link.
+A privacy-first scheduling app for Sivaganesh. The owner gets a private
+calendar and event-link editor; visitors and their personal agents see only
+the open slots for a specific meeting link. Bookings auto-confirm and include
+the configured meeting link.
 
-- Public booking page: pick a duration (15/30/60), pick a day on the month
+- Public event links (`/<slug>`): pick a duration, pick a day on the month
   calendar, pick a free slot, enter name + email. Confirmation shows the Meet
-  link and a cancel link; confirmation emails carry a `.ics` invite.
+  link and a cancel link; confirmation emails carry a `.ics` invite. Times
+  default to the visitor's detected timezone, with a full IANA timezone picker.
 - `/manage?token=…`: view and cancel a booking.
-- `/admin`: password-protected dashboard with upcoming bookings, a weekly
-  hours editor, and date overrides.
+- `/admin`: password-protected owner workspace with a private month calendar,
+  upcoming bookings, event-link editor, weekly hours, and date overrides.
 - API-first: every admin action is available over HTTP with an API key, so
-  Jarvis can read and update availability without touching the dashboard.
+  Muse/Jarvis can read and update availability without touching the dashboard.
+- Agent-ready: public OpenAPI and MCP endpoints let a guest's personal agent
+  compare open UTC slots with its user's own calendar and book after approval.
+- Calendar-ready: every booking sends `.ics` invites, a private subscription
+  feed is available, and trusted owner agents can sync opaque busy windows.
 
 ## Availability model
 
@@ -59,6 +65,7 @@ SQL (no ORM), `nodemailer` + SMTP for email.
    | `MEET_LINK` | His recurring Google Meet URL |
    | `ADMIN_PASSWORD` | Password for `/admin` |
    | `JARVIS_API_KEY` | API key Jarvis sends as `x-api-key` |
+   | `CALENDAR_FEED_TOKEN` | Secret token for the private calendar subscription URL |
    | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | ZeptoMail SMTP. If absent, emails are logged to the console instead of sent |
    | `HOST_EMAIL` | His email; receives new-booking notifications |
    | `NEXT_PUBLIC_APP_URL` | Public URL, e.g. `https://meet.siv19.dev` |
@@ -80,23 +87,11 @@ SQL (no ORM), `nodemailer` + SMTP for email.
    npm run build
    ```
 
-## Deploy (Vercel, free tier)
+## Deploy
 
-This app is small (a handful of serverless functions), so Vercel Hobby
-works — unlike Cal.diy, which needs Pro.
-
-1. Push this repo to GitHub and import it in Vercel (or `vercel` from the CLI).
-2. In Vercel → Settings → Environment Variables, add every variable from
-   `.env.example` (use the Neon pooled connection string for `DATABASE_URL`;
-   add `?sslmode=require` if it is not already there).
-3. Deploy. Then run the migration once against the Neon database:
-   `DATABASE_URL=<neon-url> npm run db:migrate` (or run it from your machine
-   with `.env` filled in).
-4. Custom domain: Vercel → Settings → Domains → add `meet.siv19.dev`.
-   At your DNS provider for `siv19.dev`, add the record Vercel shows (a
-   `CNAME` to `cname.vercel-dns.com`). HTTPS is provisioned automatically.
-5. Set `NEXT_PUBLIC_APP_URL=https://meet.siv19.dev` and redeploy so emails
-   carry the right links.
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for the production runbook, environment
+checklist, Neon migration order, `meet.siv19.dev` DNS cutover, smoke tests,
+rollback, calendar subscription, and Muse integration.
 
 ## API reference (for Jarvis)
 
@@ -106,20 +101,20 @@ its session cookie instead).
 
 ### Public
 
-**GET /api/availability?month=YYYY-MM**
+**GET /api/availability?month=YYYY-MM&eventType=SLUG&timeZone=IANA_ZONE**
 
 ```bash
-curl "https://meet.siv19.dev/api/availability?month=2026-11"
+curl "https://meet.siv19.dev/api/availability?month=2026-11&eventType=call&timeZone=America%2FChicago"
 # { "days": { "2026-11-02": true, "2026-11-07": false, ... }, "timeZone": "America/New_York" }
 ```
 
 True if the day has any availability window (weekly hours + overrides;
 bookings ignored).
 
-**GET /api/slots?date=YYYY-MM-DD&duration=30**
+**GET /api/slots?eventType=SLUG&date=YYYY-MM-DD&duration=30&timeZone=IANA_ZONE**
 
 ```bash
-curl "https://meet.siv19.dev/api/slots?date=2026-11-02&duration=30"
+curl "https://meet.siv19.dev/api/slots?eventType=call&date=2026-11-02&duration=30&timeZone=America%2FChicago"
 # { "slots": ["2026-11-02T14:00:00.000Z", ...] }  (UTC instants)
 ```
 
@@ -229,6 +224,44 @@ curl -X POST https://meet.siv19.dev/api/admin/bookings/<booking-id>/cancel \
 
 Sends cancellation emails to the booker and the host.
 
+**PUT /api/admin/calendar/busy** — replace opaque busy windows for one trusted
+calendar source and time range. This is the sync seam for Muse, Google
+Calendar automation, Outlook automation, or another owner-side worker. Event
+titles are stored for the private owner view only and are never returned by
+public availability endpoints.
+
+```bash
+curl -X PUT https://meet.siv19.dev/api/admin/calendar/busy \
+  -H "x-api-key: $JARVIS_API_KEY" -H 'Content-Type: application/json' \
+  -d '{"source":"muse-google","fromUtc":"2026-11-01T00:00:00Z",
+       "toUtc":"2027-01-01T00:00:00Z","events":[
+         {"id":"google-event-id","startUtc":"2026-11-12T15:00:00Z",
+          "endUtc":"2026-11-12T16:00:00Z","summary":"Busy"}
+       ]}'
+```
+
+### Personal-agent integration
+
+- OpenAPI document: `https://meet.siv19.dev/api/openapi`
+- MCP Streamable HTTP endpoint: `https://meet.siv19.dev/api/mcp`
+- Discovery: `https://meet.siv19.dev/.well-known/meet-scheduling`
+
+The MCP server exposes `list_event_types`, `list_available_slots`, and
+`book_meeting`. A guest agent should compare returned UTC instants with its
+user's calendar, get explicit approval for the exact time, and only then book.
+The public interface never exposes names, emails, event titles, or the owner's
+calendar.
+
+### Private calendar subscription
+
+Subscribe Google Calendar, Apple Calendar, Outlook, or Muse to:
+
+```text
+https://meet.siv19.dev/api/calendar/feed?token=$CALENDAR_FEED_TOKEN
+```
+
+Treat this URL like a password. Rotate `CALENDAR_FEED_TOKEN` if it leaks.
+
 ## Security notes
 
 - Rate limits are enforced in the `rate_limits` table: `/api/book` 5/hour
@@ -246,12 +279,9 @@ Sends cancellation emails to the booker and the host.
 
 ## Known limitations (v1, by design)
 
-- The booking page offers the `call` event type with 15/30/60-minute
-  durations. If event types change in settings, update the page (or the API
-  defaults handle it for direct API bookings).
-- No calendar sync: busy times come only from bookings made here plus the
-  availability rules. If his Google Calendar should block times, that is a
-  future integration.
+- Calendar-provider OAuth is not embedded in the web app. Muse or another
+  trusted owner-side process imports busy windows through the authenticated
+  sync API; this keeps provider refresh tokens out of the scheduling service.
 - No reschedule flow: cancel + rebook.
 - No recurring bookings, no reminders, no time-zone picker for the host
   (host timezone is `TZ_NAME`).

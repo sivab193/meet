@@ -31,7 +31,10 @@ export async function listConfirmedWindowsForDay(
 ): Promise<{ start: Date; end: Date }[]> {
   const rows = await queryRows<{ start_utc: string; end_utc: string }>(
     "SELECT start_utc::text AS start_utc, end_utc::text AS end_utc FROM bookings " +
-      "WHERE status = 'confirmed' AND start_utc < $2::timestamptz AND end_utc > $1::timestamptz",
+      "WHERE status = 'confirmed' AND start_utc < $2::timestamptz AND end_utc > $1::timestamptz " +
+      "UNION ALL " +
+      "SELECT start_utc::text AS start_utc, end_utc::text AS end_utc FROM calendar_busy " +
+      "WHERE start_utc < $2::timestamptz AND end_utc > $1::timestamptz",
     [dayStartUtc.toISOString(), dayEndUtc.toISOString()]
   );
   return rows.map((r) => ({ start: new Date(r.start_utc), end: new Date(r.end_utc) }));
@@ -54,6 +57,7 @@ export async function insertBookingAtomic(input: {
     "INSERT INTO bookings (event_type, start_utc, end_utc, booker_name, booker_email, notes, cancel_token) " +
       "SELECT $1, $2::timestamptz, $3::timestamptz, $4, $5, $6, $7 " +
       "WHERE NOT EXISTS (SELECT 1 FROM bookings WHERE status = 'confirmed' AND start_utc < $3::timestamptz AND end_utc > $2::timestamptz) " +
+      "AND NOT EXISTS (SELECT 1 FROM calendar_busy WHERE start_utc < $3::timestamptz AND end_utc > $2::timestamptz) " +
       "RETURNING id",
     [
       input.eventType,

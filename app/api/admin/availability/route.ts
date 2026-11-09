@@ -4,6 +4,7 @@ import {
   deleteOverride,
   loadOverrides,
   loadSettings,
+  normalizeEventTypes,
   normalizeWeeklyHours,
   saveSettings,
   upsertOverride,
@@ -58,17 +59,8 @@ function isPositiveInt(v: unknown): v is number {
 
 function validEventTypes(v: unknown): v is EventType[] {
   if (!Array.isArray(v) || v.length === 0) return false;
-  return v.every(
-    (e) =>
-      e &&
-      typeof e === "object" &&
-      typeof (e as Record<string, unknown>).id === "string" &&
-      typeof (e as Record<string, unknown>).name === "string" &&
-      Array.isArray((e as Record<string, unknown>).durations) &&
-      ((e as Record<string, unknown>).durations as unknown[]).every(
-        (d) => typeof d === "number" && d > 0
-      )
-  );
+  const normalized = normalizeEventTypes(v);
+  return normalized.length === v.length && new Set(normalized.map((e) => e.id)).size === v.length;
 }
 
 export async function PUT(request: Request) {
@@ -116,7 +108,7 @@ export async function PUT(request: Request) {
       if (!validEventTypes(body.event_types)) {
         return NextResponse.json({ error: "event_types is invalid" }, { status: 400 });
       }
-      patch.event_types = body.event_types;
+      patch.event_types = normalizeEventTypes(body.event_types);
     }
 
     const overrides = body.overrides as
