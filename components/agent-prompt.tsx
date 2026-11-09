@@ -3,6 +3,7 @@
 import { Bot, Check, Copy, ShieldCheck } from "lucide-react";
 import { useState, useSyncExternalStore } from "react";
 import { Card, cn } from "./ui";
+import { ScrollArea } from "./ui/scroll-area";
 
 const SITE = "https://meet.siv19.dev";
 const MCP_URL = `${SITE}/api/mcp`;
@@ -114,13 +115,15 @@ export default function AgentPrompt() {
       </div>
 
       <div className="relative border-y border-border bg-muted/50">
-        <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words px-5 py-4 pr-28 font-mono text-[13px] leading-6 text-foreground sm:px-6">
-          {prompt}
-        </pre>
+        <ScrollArea viewportClassName="max-h-72">
+          <pre className="whitespace-pre-wrap break-words px-5 py-4 pr-32 font-mono text-[13px] leading-6 text-foreground sm:px-6">
+            {prompt}
+          </pre>
+        </ScrollArea>
         <CopyButton
           text={prompt}
           label="Copy prompt"
-          className="absolute right-3 top-3 shadow-sm"
+          className="absolute right-4 top-3 z-10 shadow-sm"
         />
       </div>
 

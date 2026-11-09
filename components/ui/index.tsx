@@ -5,8 +5,8 @@ export function cn(...classes: (string | false | null | undefined)[]): string {
   return classes.filter(Boolean).join(" ");
 }
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
-type ButtonSize = "sm" | "md" | "lg";
+type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "danger-solid";
+type ButtonSize = "sm" | "md" | "lg" | "icon";
 
 const buttonVariants: Record<ButtonVariant, string> = {
   primary:
@@ -16,12 +16,15 @@ const buttonVariants: Record<ButtonVariant, string> = {
   ghost: "text-muted-foreground hover:bg-muted hover:text-foreground",
   danger:
     "border border-danger/40 bg-transparent text-danger hover:bg-danger-soft",
+  "danger-solid":
+    "bg-danger text-white shadow-sm shadow-danger/30 hover:opacity-90 dark:text-[#1a0505]",
 };
 
 const buttonSizes: Record<ButtonSize, string> = {
   sm: "h-8 gap-1.5 rounded-lg px-3 text-xs",
   md: "h-10 gap-2 rounded-xl px-4 text-sm",
   lg: "h-12 gap-2 rounded-xl px-5 text-base",
+  icon: "size-8 rounded-lg [&_svg]:size-4",
 };
 
 export function buttonClass(variant: ButtonVariant = "primary", size: ButtonSize = "md") {
@@ -55,6 +58,21 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
     />
   );
 }
+
+/** Trigger styling shared by Select, Combobox and DatePicker buttons. */
+export const triggerClass = cn(
+  "group flex w-full items-center gap-2 rounded-xl border border-input bg-background px-3.5 py-2.5 text-left text-sm text-foreground",
+  "transition-colors hover:border-primary/50",
+  "focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30",
+  "data-[state=open]:border-primary data-[state=open]:ring-2 data-[state=open]:ring-ring/30",
+  "disabled:pointer-events-none disabled:opacity-50"
+);
+
+/** Floating surface for dropdowns, popovers and menus. */
+export const popoverClass = cn(
+  "z-50 overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-2xl shadow-black/20",
+  "data-[state=open]:animate-pop-in"
+);
 
 export const inputClass = cn(
   "w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm text-foreground",

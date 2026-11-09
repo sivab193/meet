@@ -17,6 +17,8 @@ import {
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Badge, Button, Card, Label, Monogram, SectionLabel, buttonClass, cn, inputClass } from "./ui";
+import { ScrollArea } from "./ui/scroll-area";
+import { TimezoneCombobox } from "./ui/timezone-combobox";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_LABELS = [
@@ -268,7 +270,7 @@ export default function BookingPage({ eventType }: { eventType: PublicEventType 
             <span>
               {fmtLong(selectedSlot)}
               <br />
-              {fmtSlot(selectedSlot)} – {fmtSlot(slotEnd)}
+              {fmtSlot(selectedSlot)} â€“ {fmtSlot(slotEnd)}
             </span>
           </li>
         )}
@@ -305,22 +307,19 @@ export default function BookingPage({ eventType }: { eventType: PublicEventType 
           <SectionLabel icon={<Globe2 className="size-3.5" />} className="mt-6">
             <label htmlFor="timezone">Your timezone</label>
           </SectionLabel>
-          <select
+          <TimezoneCombobox
             id="timezone"
             value={displayTimeZone}
-            onChange={(e) => {
-              setDisplayTimeZone(e.target.value);
+            zones={timeZones}
+            detectedZone={detectedTimeZone}
+            onValueChange={(zone) => {
+              setDisplayTimeZone(zone);
               setAvailability(null);
               setSelectedDate(null);
               setSlots(null);
               setSelectedSlot(null);
             }}
-            className={inputClass}
-          >
-            {timeZones.map((zone) => (
-              <option key={zone} value={zone}>{zone.replaceAll("_", " ")}</option>
-            ))}
-          </select>
+          />
           <p className="mt-2 text-xs leading-5 text-muted-foreground">
             Detected automatically. Sivaganesh&apos;s hours are converted from {timeZone}.
           </p>
@@ -347,18 +346,18 @@ export default function BookingPage({ eventType }: { eventType: PublicEventType 
             <div className="flex gap-3">
               <dt className="sr-only">Meeting</dt>
               <Video className="mt-0.5 size-4 shrink-0 text-primary" />
-              <dd className="font-medium">{eventType.name} · {duration} min</dd>
+              <dd className="font-medium">{eventType.name} Â· {duration} min</dd>
             </div>
             <div className="flex gap-3">
               <dt className="sr-only">When</dt>
               <CalendarDays className="mt-0.5 size-4 shrink-0 text-primary" />
               <dd>
                 <p className="font-medium">
-                  {fmtLong(selectedSlot)} · {fmtSlot(selectedSlot)} – {fmtSlot(slotEnd)}
+                  {fmtLong(selectedSlot)} Â· {fmtSlot(selectedSlot)} â€“ {fmtSlot(slotEnd)}
                 </p>
                 <p className="text-muted-foreground">{displayTimeZone}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {fmtInZone(selectedSlot, timeZone)} – {fmtInZone(slotEnd, timeZone)} ({timeZone})
+                  {fmtInZone(selectedSlot, timeZone)} â€“ {fmtInZone(slotEnd, timeZone)} ({timeZone})
                 </p>
               </dd>
             </div>
@@ -410,17 +409,17 @@ export default function BookingPage({ eventType }: { eventType: PublicEventType 
           <div className="grid gap-6 md:grid-cols-[1fr_13rem]">
             <section aria-label="Choose a date">
               <div className="mb-4 flex items-center justify-between">
-                <SectionLabel icon={<CalendarDays className="size-3.5" />} className="mb-0">
+                <SectionLabel icon={<CalendarDays className="size-3.5" />} className="mb-0 hidden sm:flex">
                   Select a date
                 </SectionLabel>
-                <div className="flex items-center gap-1">
+                <div className="flex w-full items-center justify-between gap-1 sm:w-auto">
                   <Button
                     variant="ghost"
-                    size="sm"
+                    size="icon"
                     aria-label="Previous month"
                     onClick={() => shiftMonth(-1)}
                     disabled={isPrevDisabled}
-                    className="size-8 px-0"
+                    
                   >
                     <ChevronLeft className="size-4" />
                   </Button>
@@ -429,10 +428,10 @@ export default function BookingPage({ eventType }: { eventType: PublicEventType 
                   </span>
                   <Button
                     variant="ghost"
-                    size="sm"
+                    size="icon"
                     aria-label="Next month"
                     onClick={() => shiftMonth(1)}
-                    className="size-8 px-0"
+                    
                   >
                     <ChevronRight className="size-4" />
                   </Button>
@@ -512,25 +511,27 @@ export default function BookingPage({ eventType }: { eventType: PublicEventType 
                 </p>
               )}
               {selectedDate && !slotsLoading && slots !== null && slots.length > 0 && (
-                <div className="grid max-h-80 grid-cols-3 gap-2 overflow-y-auto pr-1 sm:grid-cols-4 md:grid-cols-1">
-                  {slots.map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      aria-pressed={selectedSlot === s}
-                      onClick={() => setSelectedSlot(s)}
-                      className={cn(
-                        "h-10 rounded-xl border text-sm font-medium transition-all",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                        selectedSlot === s
-                          ? "border-primary bg-primary text-primary-foreground shadow-md shadow-primary/30"
-                          : "border-border bg-background hover:border-primary hover:text-primary"
-                      )}
-                    >
-                      {fmtSlot(s)}
-                    </button>
-                  ))}
-                </div>
+                <ScrollArea viewportClassName="max-h-80" className="-mr-3">
+                  <div className="grid grid-cols-3 gap-2 pr-3 sm:grid-cols-4 md:grid-cols-1">
+                    {slots.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        aria-pressed={selectedSlot === s}
+                        onClick={() => setSelectedSlot(s)}
+                        className={cn(
+                          "h-10 rounded-xl border text-sm font-medium transition-all",
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                          selectedSlot === s
+                            ? "border-primary bg-primary text-primary-foreground shadow-md shadow-primary/30"
+                            : "border-border bg-background hover:border-primary hover:text-primary"
+                        )}
+                      >
+                        {fmtSlot(s)}
+                      </button>
+                    ))}
+                  </div>
+                </ScrollArea>
               )}
             </section>
           </div>
@@ -606,13 +607,13 @@ export default function BookingPage({ eventType }: { eventType: PublicEventType 
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <Badge tone="primary" className="self-start sm:self-auto">
                   <CalendarDays className="size-3" />
-                  {fmtDateStr(selectedDate).replace(/, \d{4}$/, "")} · {fmtSlot(selectedSlot)}
+                  {fmtDateStr(selectedDate).replace(/, \d{4}$/, "")} Â· {fmtSlot(selectedSlot)}
                 </Badge>
                 <button type="submit" disabled={submitting} className={cn(buttonClass("primary", "lg"), "sm:min-w-48")}>
                   {submitting ? (
                     <>
                       <Loader2 className="size-4 animate-spin" />
-                      Booking…
+                      Bookingâ€¦
                     </>
                   ) : (
                     <>

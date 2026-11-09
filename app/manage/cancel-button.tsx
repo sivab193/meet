@@ -3,6 +3,7 @@
 import { Loader2, XCircle } from "lucide-react";
 import { useState } from "react";
 import { Alert, Button } from "@/components/ui";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export default function CancelButton({ token }: { token: string }) {
   const [state, setState] = useState<"idle" | "working" | "done" | "error">("idle");
@@ -27,10 +28,18 @@ export default function CancelButton({ token }: { token: string }) {
 
   return (
     <div className="space-y-3">
-      <Button variant="danger" onClick={cancel} disabled={state === "working"}>
-        {state === "working" ? <Loader2 className="size-4 animate-spin" /> : <XCircle className="size-4" />}
-        {state === "working" ? "Cancelling…" : "Cancel this booking"}
-      </Button>
+      <ConfirmDialog
+        title="Cancel this booking?"
+        description="The time slot will be released and both of you will get a cancellation email. This can't be undone."
+        confirmLabel="Yes, cancel it"
+        onConfirm={cancel}
+        trigger={
+          <Button variant="danger" disabled={state === "working"}>
+            {state === "working" ? <Loader2 className="size-4 animate-spin" /> : <XCircle className="size-4" />}
+            {state === "working" ? "Cancelling…" : "Cancel this booking"}
+          </Button>
+        }
+      />
       {state === "error" && <Alert>Could not cancel. Please try again.</Alert>}
     </div>
   );

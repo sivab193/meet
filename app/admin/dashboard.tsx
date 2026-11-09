@@ -18,6 +18,11 @@ import {
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Alert, Badge, Button, Card, cn, inputClass } from "@/components/ui";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Checkbox, NumberField, Switch } from "@/components/ui/controls";
+import { DatePicker } from "@/components/ui/date-picker";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { TimeSelect, formatTime12 } from "@/components/ui/select";
 import type { BookingRow } from "@/lib/bookings";
 import type { EventType, OverrideRow } from "@/lib/settings";
 
@@ -72,8 +77,6 @@ function monthCells(year: number, month: number): (string | null)[] {
   }
   return result;
 }
-
-const smallInput = cn(inputClass, "w-auto px-2.5 py-1.5");
 
 function SectionHeader({
   icon,
@@ -310,16 +313,18 @@ export default function Dashboard({
           description="Full booking details are visible only in this signed-in workspace."
         >
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" aria-label="Previous month" onClick={() => shiftCalendarMonth(-1)} className="size-8 px-0">
+            <Button variant="ghost" size="icon" aria-label="Previous month" onClick={() => shiftCalendarMonth(-1)}>
               <ChevronLeft className="size-4" />
             </Button>
             <span className="min-w-36 text-center text-sm font-semibold">{monthLabel}</span>
-            <Button variant="ghost" size="sm" aria-label="Next month" onClick={() => shiftCalendarMonth(1)} className="size-8 px-0">
+            <Button variant="ghost" size="icon" aria-label="Next month" onClick={() => shiftCalendarMonth(1)}>
               <ChevronRight className="size-4" />
             </Button>
           </div>
         </SectionHeader>
-        <div className="mt-5 grid grid-cols-7 text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <ScrollArea horizontal alwaysShow className="mt-5">
+        <div className="min-w-[44rem] pb-3">
+        <div className="grid grid-cols-7 text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <div key={day} className="py-2">{day}</div>)}
         </div>
         <div className="grid grid-cols-7 gap-px overflow-hidden rounded-xl border border-border bg-border">
@@ -333,7 +338,7 @@ export default function Dashboard({
                   {items.map((booking) => (
                     <div
                       key={booking.id}
-                      title={`${booking.booker_name} · ${booking.booker_email}${booking.notes ? ` · ${booking.notes}` : ""}`}
+                      title={`${booking.booker_name} Ã‚Â· ${booking.booker_email}${booking.notes ? ` Ã‚Â· ${booking.notes}` : ""}`}
                       className={cn(
                         "truncate rounded-md px-1.5 py-1 text-[11px] leading-tight",
                         booking.status === "confirmed"
@@ -349,6 +354,8 @@ export default function Dashboard({
             );
           })}
         </div>
+        </div>
+        </ScrollArea>
       </Card>
 
       <Card className="mt-6 p-5 sm:p-6">
@@ -366,17 +373,25 @@ export default function Dashboard({
                 <div className="min-w-0">
                   <p className="font-medium">
                     {b.booker_name}{" "}
-                    <span className="font-normal text-muted-foreground">· {fmtWhen(b.start_utc, timeZone)}</span>
+                    <span className="font-normal text-muted-foreground">Ã‚Â· {fmtWhen(b.start_utc, timeZone)}</span>
                   </p>
                   <p className="truncate text-sm text-muted-foreground">
                     {b.booker_email}
-                    {b.notes ? ` · ${b.notes}` : ""}
+                    {b.notes ? ` Ã‚Â· ${b.notes}` : ""}
                   </p>
                 </div>
-                <Button variant="danger" size="sm" onClick={() => cancelBooking(b.id)}>
-                  <X className="size-3.5" />
-                  Cancel
-                </Button>
+                <ConfirmDialog
+                  title={`Cancel ${b.booker_name}'s booking?`}
+                  description={`${fmtWhen(b.start_utc, timeZone)}. ${b.booker_name} will get a cancellation email and the slot opens up again.`}
+                  confirmLabel="Cancel booking"
+                  onConfirm={() => cancelBooking(b.id)}
+                  trigger={
+                    <Button variant="danger" size="sm">
+                      <X className="size-3.5" />
+                      Cancel
+                    </Button>
+                  }
+                />
               </li>
             ))}
           </ul>
@@ -395,59 +410,57 @@ export default function Dashboard({
             title="Weekly hours"
             description={`Times are in ${timeZone}. Unchecked days are closed.`}
           />
-          <div className="mt-5 space-y-2">
+          <div className="mt-5 space-y-1.5">
             {days.map((d, i) => (
-              <div key={DAY_NAMES[i]} className="flex flex-wrap items-center gap-3">
-                <label className="flex w-32 items-center gap-2 text-sm font-medium">
-                  <input
-                    type="checkbox"
+              <div
+                key={DAY_NAMES[i]}
+                className={cn(
+                  "flex flex-wrap items-center gap-3 rounded-xl px-2 py-1.5 transition-colors",
+                  d.on ? "bg-transparent" : "opacity-60"
+                )}
+              >
+                <label className="flex w-36 cursor-pointer items-center gap-3 text-sm font-medium">
+                  <Switch
                     checked={d.on}
-                    className="size-4 accent-[var(--primary)]"
-                    onChange={(e) =>
-                      setDays(days.map((x, j) => (j === i ? { ...x, on: e.target.checked } : x)))
+                    aria-label={`${DAY_NAMES[i]} open`}
+                    onCheckedChange={(on) =>
+                      setDays(days.map((x, j) => (j === i ? { ...x, on } : x)))
                     }
                   />
                   {DAY_NAMES[i]}
                 </label>
-                <input
-                  type="time"
-                  value={d.start}
-                  disabled={!d.on}
-                  onChange={(e) =>
-                    setDays(days.map((x, j) => (j === i ? { ...x, start: e.target.value } : x)))
-                  }
-                  className={smallInput}
-                />
-                <span className="text-sm text-muted-foreground">to</span>
-                <input
-                  type="time"
-                  value={d.end}
-                  disabled={!d.on}
-                  onChange={(e) =>
-                    setDays(days.map((x, j) => (j === i ? { ...x, end: e.target.value } : x)))
-                  }
-                  className={smallInput}
-                />
+                {d.on ? (
+                  <div className="flex items-center gap-2">
+                    <TimeSelect
+                      value={d.start}
+                      aria-label={`${DAY_NAMES[i]} start`}
+                      onValueChange={(start) =>
+                        setDays(days.map((x, j) => (j === i ? { ...x, start } : x)))
+                      }
+                    />
+                    <span className="text-sm text-muted-foreground">to</span>
+                    <TimeSelect
+                      value={d.end}
+                      aria-label={`${DAY_NAMES[i]} end`}
+                      onValueChange={(end) =>
+                        setDays(days.map((x, j) => (j === i ? { ...x, end } : x)))
+                      }
+                    />
+                  </div>
+                ) : (
+                  <span className="text-sm text-muted-foreground">Closed</span>
+                )}
               </div>
             ))}
           </div>
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <label className="text-sm text-muted-foreground">
-              Min notice (min)
-              <input type="number" min={0} value={minNotice} onChange={(e) => setMinNotice(Number(e.target.value))} className={cn(inputClass, "mt-1 py-1.5")} />
-            </label>
-            <label className="text-sm text-muted-foreground">
-              Slot step (min)
-              <input type="number" min={5} value={slotStep} onChange={(e) => setSlotStep(Number(e.target.value))} className={cn(inputClass, "mt-1 py-1.5")} />
-            </label>
-            <label className="text-sm text-muted-foreground">
-              Max days ahead
-              <input type="number" min={1} value={maxDays} onChange={(e) => setMaxDays(Number(e.target.value))} className={cn(inputClass, "mt-1 py-1.5")} />
-            </label>
+            <NumberField id="min-notice" label="Min notice" suffix="min" min={0} step={15} value={minNotice} onValueChange={setMinNotice} />
+            <NumberField id="slot-step" label="Slot step" suffix="min" min={5} step={5} value={slotStep} onValueChange={setSlotStep} />
+            <NumberField id="max-days" label="Max days ahead" suffix="days" min={1} max={365} value={maxDays} onValueChange={setMaxDays} />
           </div>
           <Button onClick={saveHours} disabled={saving} className="mt-5">
             <Save className="size-4" />
-            {saving ? "Saving…" : "Save hours & settings"}
+            {saving ? "SavingÃ¢â‚¬Â¦" : "Save hours & settings"}
           </Button>
         </Card>
 
@@ -457,20 +470,18 @@ export default function Dashboard({
             title="Date overrides"
             description="One-off changes for specific dates. An override wins over weekly hours."
           />
-          <div className="mt-5 flex flex-wrap items-center gap-2">
-            <input type="date" value={ovDate} onChange={(e) => setOvDate(e.target.value)} className={smallInput} />
-            <input type="time" value={ovStart} disabled={ovUnavailable} onChange={(e) => setOvStart(e.target.value)} className={smallInput} />
-            <span className="text-sm text-muted-foreground">to</span>
-            <input type="time" value={ovEnd} disabled={ovUnavailable} onChange={(e) => setOvEnd(e.target.value)} className={smallInput} />
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={ovUnavailable}
-                className="size-4 accent-[var(--primary)]"
-                onChange={(e) => setOvUnavailable(e.target.checked)}
-              />
-              Unavailable all day
-            </label>
+          <div className="mt-5 space-y-3">
+            <DatePicker value={ovDate} onValueChange={setOvDate} placeholder="Pick a date to override" />
+            <div className="flex flex-wrap items-center gap-3">
+              {!ovUnavailable && (
+                <div className="flex items-center gap-2">
+                  <TimeSelect value={ovStart} aria-label="Override start" onValueChange={setOvStart} />
+                  <span className="text-sm text-muted-foreground">to</span>
+                  <TimeSelect value={ovEnd} aria-label="Override end" onValueChange={setOvEnd} />
+                </div>
+              )}
+              <Checkbox checked={ovUnavailable} onCheckedChange={setOvUnavailable} label="Unavailable all day" />
+            </div>
           </div>
           <Button onClick={addOverride} disabled={saving} className="mt-4">
             <Plus className="size-4" />
@@ -485,12 +496,21 @@ export default function Dashboard({
                 <span>
                   <span className="font-mono font-medium">{o.date}</span>{" "}
                   <span className="text-muted-foreground">
-                    · {o.is_unavailable ? "Unavailable all day" : `${o.start_time} – ${o.end_time}`}
+                    Ã‚Â· {o.is_unavailable ? "Unavailable all day" : `${formatTime12(o.start_time ?? "")} Ã¢â‚¬â€œ ${formatTime12(o.end_time ?? "")}`}
                   </span>
                 </span>
-                <Button variant="ghost" size="sm" aria-label={`Delete override for ${o.date}`} onClick={() => deleteOverride(o.id)} className="size-8 px-0">
-                  <Trash2 className="size-4" />
-                </Button>
+                <ConfirmDialog
+                  title="Delete this override?"
+                  description={`${o.date} will go back to your regular weekly hours.`}
+                  confirmLabel="Delete override"
+                  cancelLabel="Keep it"
+                  onConfirm={() => deleteOverride(o.id)}
+                  trigger={
+                    <Button variant="ghost" size="icon" aria-label={`Delete override for ${o.date}`} className="hover:text-danger">
+                      <Trash2 className="size-4" />
+                    </Button>
+                  }
+                />
               </li>
             ))}
           </ul>
@@ -524,10 +544,19 @@ export default function Dashboard({
                     /{event.id}
                     <ExternalLink className="size-3.5" />
                   </a>
-                  <Button variant="danger" onClick={() => removeEvent(index)}>
-                    <Trash2 className="size-4" />
-                    Remove
-                  </Button>
+                  <ConfirmDialog
+                    title={`Remove "${event.name}"?`}
+                    description={`The /${event.id} link stops working once you save event types. Existing bookings are kept.`}
+                    confirmLabel="Remove"
+                    cancelLabel="Keep it"
+                    onConfirm={() => removeEvent(index)}
+                    trigger={
+                      <Button variant="danger">
+                        <Trash2 className="size-4" />
+                        Remove
+                      </Button>
+                    }
+                  />
                 </div>
               </div>
             </div>
@@ -540,7 +569,7 @@ export default function Dashboard({
           </Button>
           <Button onClick={saveEvents} disabled={saving}>
             <Save className="size-4" />
-            {saving ? "Saving…" : "Save event types"}
+            {saving ? "SavingÃ¢â‚¬Â¦" : "Save event types"}
           </Button>
         </div>
       </Card>
