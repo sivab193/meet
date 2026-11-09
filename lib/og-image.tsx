@@ -1,10 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ImageResponse } from "next/og";
+import { ogSize } from "./og-meta";
 
-/** 1200x630 is the size LinkedIn, WhatsApp, Slack, X and Facebook all crop well. */
-export const ogSize = { width: 1200, height: 630 };
-export const ogAlt = "Book a call with Sivaganesh at meet.siv19.dev";
+export { ogAlt, ogSize } from "./og-meta";
 
 const SLOTS = ["9:00 AM", "10:30 AM", "1:00 PM", "3:30 PM"];
 const DAYS = ["M", "T", "W", "T", "F", "S", "S"];
