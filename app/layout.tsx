@@ -14,10 +14,28 @@ export const metadata: Metadata = {
   applicationName: "Meet with Sivaganesh",
   authors: [{ name: "Sivaganesh Balaganesh", url: "https://siv19.dev" }],
   creator: "Sivaganesh Balaganesh",
+  keywords: [
+    "Sivaganesh",
+    "schedule a meeting",
+    "book a call",
+    "calendar booking",
+    "meet.siv19.dev",
+  ],
   openGraph: {
     type: "website",
     siteName: "Meet with Sivaganesh",
+    title: "Meet with Sivaganesh",
+    description:
+      "Find a mutually convenient time and schedule a conversation with Sivaganesh.",
     url: siteUrl,
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Meet with Sivaganesh",
+    description:
+      "Find a mutually convenient time and schedule a conversation with Sivaganesh.",
+    creator: "@siv19",
   },
   robots: { index: true, follow: true },
 };
